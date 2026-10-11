@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MD 뷰어 최소버전</title>
+<meta name="theme-color" content="#000000" />
+<link rel="manifest" href="./manifest.json" />
+<link rel="icon" href="./icon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="./vendor/github.min.css" />
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; }
+  header { padding: 12px 16px; border-bottom: 1px solid #ddd; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  main { display: grid; grid-template-columns: 1fr; gap: 0; height: calc(100vh - 140px); min-height: 280px; }
+  #input-pane { display: none; }
+  #md-input { flex: 1; padding: 12px; font: 14px/1.6 monospace; border: 0; resize: none; outline: none; }
+  #preview { padding: 16px 20px; overflow: auto; }
+  #preview pre { background: #f6f8fa; padding: 12px; overflow: auto; }
+  #status { font-size: 12px; color: #666; }
+  #body { display: flex; }
+  #sidebar { width: 220px; min-width: 220px; border-right: 1px solid #ddd; overflow-y: auto; }
+  #filelist { list-style: none; margin: 0; padding: 8px; }
+  #filelist li { display: flex; gap: 6px; align-items: center; padding: 6px 8px; cursor: pointer; border-radius: 6px; white-space: nowrap; overflow: hidden; }
+  #filelist li.active { background: #000; color: #fff; }
+  #filelist li .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  #filelist li .x { opacity: .5; }
+  #sb-head { padding: 8px 8px 0; }
+  body.dragover main { outline: 2px dashed #666; outline-offset: -2px; }
+  body.dark { background: #1e1e1e; color: #ddd; }
+  body.dark header, body.dark section { border-color: #444; }
+  body.dark #input-pane { border-color: #444; }
+  body.dark #md-input { background: #1e1e1e; color: #ddd; }
+  body.dark #preview pre { background: #2d2d2d; }
+  body.dark #sidebar { border-color: #444; }
+  body.dark #filelist li.active { background: #ddd; color: #000; }
+  body.dark a { color: #8ab4f8; }
+  body.dark #toc { border-color: #444; }
+  #toc-list a { color: inherit; text-decoration: none; }
+  #toc-list a:hover { text-decoration: underline; }
+  #panebar { display: flex; gap: 6px; align-items: center; padding: 6px 20px; border-bottom: 1px solid #ddd; font-size: 13px; }
+  #panebar button:disabled { opacity: .4; }
+  #laybtns { display: flex; gap: 4px; margin-left: 8px; }
+  #wall { display: none; overflow-y: auto; padding: 16px 20px; gap: 12px; }
+  #wall.wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  #wall.dash { display: block; }
+  #wall.pebble { display: flex; flex-wrap: wrap; }
+  #wall .card { border-radius: 10px; padding: 12px; cursor: pointer; border: 1px solid; }
+  #wall .card .ct { font-weight: 700; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  #wall .card .ce { font-size: 13px; opacity: .8; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+  #wall .card .cm { font-size: 11px; opacity: .6; margin-top: 8px; }
+  #wall.dash .card { display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px; }
+  #wall.dash .card .ct { margin-bottom: 0; flex: 0 0 220px; -webkit-line-clamp: 1; }
+  #wall.dash .card .ce { flex: 1; -webkit-line-clamp: 1; }
+  #wall.dash .card .cm { margin-top: 0; white-space: nowrap; }
+  #wall.pebble .card { padding: 6px 12px; border-radius: 16px; }
+  #wall.pebble .card .ce, #wall.pebble .card .cm { display: none; }
+  #wall.pebble .card .ct { margin-bottom: 0; -webkit-line-clamp: 1; }
+  #wall .empty { color: #999; font-size: 14px; }
+  #wall .card.dragging { opacity: .4; }
+  #wall .card.over { outline: 2px dashed #666; outline-offset: -2px; }
+  body.dark #panebar { border-color: #444; }
+  #chatsec { border-top: 1px solid #ddd; }
+  #chatlog { max-height: 30vh; overflow-y: auto; padding: 8px 16px; display: flex; flex-direction: column; gap: 8px; }
+  #chatlog .msg { max-width: 85%; padding: 8px 12px; border-radius: 8px; font-size: 14px; overflow-wrap: break-word; }
+  #chatlog .msg.me { align-self: flex-end; background: #000; color: #fff; white-space: pre-wrap; }
+  #chatlog .msg.ai { align-self: flex-start; background: #f6f8fa; }
+  #chatlog .msg.ai pre { background: #fff; padding: 8px; overflow: auto; }
+  #chatrow { display: flex; gap: 8px; padding: 8px 16px; }
+  #chatin { flex: 1; padding: 6px 8px; }
+  body.dark #chatsec { border-color: #444; }
+  body.dark #chatlog .msg.ai { background: #2d2d2d; }
+  body.dark #chatlog .msg.me { background: #ddd; color: #000; }
+  @media (max-width: 768px) {
+    #body { flex-direction: column; }
+    #sidebar { width: auto; min-width: 0; border-right: 0; border-bottom: 1px solid #ddd; max-height: 30vh; }
+    main { grid-template-columns: 1fr; height: auto; }
+    #input-pane { border-right: 0; border-bottom: 1px solid #ddd; }
+    #md-input { min-height: 30vh; }
+    #preview { min-height: 40vh; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <strong>MD 뷰어</strong>
+  <input type="file" id="file" accept=".md,.markdown,text/markdown" title="파일 열기 (Ctrl+O)" />
+  <button id="folder" title="폴더 내 .md 일괄 열기">폴더</button>
+  <button id="export" title="미리보기를 HTML 파일로 저장 (Ctrl+E)">내보내기</button>
+  <button id="theme" title="다크모드 전환 (Ctrl+D)">다크</button>
+  <input id="find" placeholder="검색" size="10" title="미리보기 검색 (Ctrl+F, Esc: 지우기)" />
+  <span id="findcount" style="font-size:12px;color:#666;"></span>
+  <input type="file" id="dirfallback" webkitdirectory style="display:none" />
+  <select id="ver" title="버전"></select>
+  <span id="monitor" title="Node·Edge 모니터" style="font-size:12px;background:#000;color:#fff;padding:2px 8px;border-radius:10px;"></span>
+  <span id="status"></span>
+  <span id="stats" style="font-size:12px;color:#999;"></span>
+</header>
+<div id="body">
+<aside id="sidebar"><div id="sb-head"><strong>파일</strong></div><ul id="filelist"></ul></aside>
+<main>
+  <div id="input-pane">
+    <textarea id="md-input" placeholder="# 여기에 붙여넣거나 파일을 여세요"></textarea>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+    <div id="panebar"><button id="pm-wall">벽</button><button id="pm-doc">문서</button><span id="laybtns"><button data-l="wall">벽형</button><button data-l="dash">대시보드</button><button data-l="pebble">조약돌</button></span></div>
+    <div id="wall"></div>
+    <details id="toc" style="border-bottom:1px solid #ddd;padding:4px 20px;font-size:13px;">
+      <summary style="cursor:pointer;">목차</summary>
+      <ul id="toc-list" style="margin:6px 0;padding-left:20px;"></ul>
+    </details>
+    <div id="preview" style="flex:1;"></div>
+  </div>
+</main>
+</div>
+<section id="chatsec">
+  <details id="chatdet">
+    <summary style="cursor:pointer;padding:8px 16px;font-size:13px;">채팅 <span id="chatmodel" style="color:#999;">muse-spark-1.3-free</span> <span id="chattarget" style="color:#999;"></span></summary>
+    <div id="chatlog"></div>
+    <div id="chatrow"><input id="chatin" placeholder="개선 지시 (예: 목차를 보강해줘)" /><button id="chatsend">전송</button><button id="chatapply" style="display:none">반영</button></div>
+  </details>
+</section>
+<script src="./vendor/markdown-it.min.js"></script>
+<script>if (!window.markdownit) document.write('<script src="https://cdn.jsdelivr.net/npm/markdown-it/dist/markdown-it.min.js"><\/script>');</script>
+<script src="./vendor/marked.min.js"></script>
+<script>if (!window.marked) document.write('<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>');</script>
+<script src="./vendor/purify.min.js"></script>
+<script>if (!window.DOMPurify) document.write('<script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"><\/script>');</script>
+<script src="./vendor/highlight.min.js"></script>
+<script>if (!window.hljs) document.write('<script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11/highlight.min.js"><\/script>');</script>
+<script>
+  const input = document.getElementById('md-input');
+  const preview = document.getElementById('preview');
+  const file = document.getElementById('file');
+  const status = document.getElementById('status');
+  const verSel = document.getElementById('ver');
+  const findInput = document.getElementById('find');
+  const findCount = document.getElementById('findcount');
+
+  // 렌더 파서: markdown-it 우선(CommonMark), 없으면 marked 폴백
+  const mdit = window.markdownit ? window.markdownit({ html: false, linkify: true }) : null;
+  function renderMarkdown(md) {
+    if (mdit) return mdit.render(md || '');
+    return marked.parse(md || '');
+  }
+
+  function render() {
+    try {
+      preview.innerHTML = DOMPurify.sanitize(renderMarkdown(input.value), { ADD_ATTR: ['class'] });
+      if (window.hljs) preview.querySelectorAll('pre code').forEach(el => {
+        try { hljs.highlightElement(el); } catch (e) {}
+      });
+      buildToc();
+      applyFind();
+      const t = input.value;
+      document.getElementById('stats').textContent =
+        t ? t.length + '자 · ' + t.trim().split(/\s+/).length + '단어 · ' + t.split('\n').length + '줄' : '';
+      if (!findInput.value) status.textContent = input.value ? '' : '비어 있음';
+    } catch (e) {
+      status.textContent = '렌더 실패: ' + e.message;
+    }
+  }
+
+  function buildToc() {
+    const list = document.getElementById('toc-list');
+    const box = document.getElementById('toc');
+    list.innerHTML = '';
+    const heads = preview.querySelectorAll('h1, h2, h3');
+    box.style.display = heads.length ? '' : 'none';
+    heads.forEach((h, i) => {
+      const slug = 'h-' + i + '-' + h.textContent.trim().toLowerCase().replace(/[^\w가-힣]+/g, '-').slice(0, 30);
+      h.id = slug;
+      const li = document.createElement('li');
+      li.style.marginLeft = h.tagName === 'H2' ? '12px' : h.tagName === 'H3' ? '24px' : '0';
+      const a = document.createElement('a');
+      a.href = '#' + slug;
+      a.textContent = h.textContent;
+      a.onclick = ev => { ev.preventDefault(); h.scrollIntoView({ block: 'start' }); };
+      li.appendChild(a);
+      list.appendChild(li);
+    });
+  }
+  function applyFind() {
+    const q = findInput.value;
+    preview.querySelectorAll('mark').forEach(m => {
+      m.replaceWith(document.createTextNode(m.textContent));
+    });
+    preview.normalize();
+    if (!q) { findCount.textContent = ''; return; }
+    const lower = q.toLowerCase();
+    let hits = 0;
+    const walker = document.createTreeWalker(preview, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const node of nodes) {
+      let cur = node;
+      while (cur && hits < 500) {
+        const idx = cur.textContent.toLowerCase().indexOf(lower);
+        if (idx < 0) break;
+        const range = document.createRange();
+        range.setStart(cur, idx);
+        range.setEnd(cur, idx + q.length);
+        const mark = document.createElement('mark');
+        try { range.surroundContents(mark); hits++; } catch (e) { break; }
+        cur = mark.nextSibling;
+        if (!cur || cur.nodeType !== 3) break;
+      }
+      if (hits >= 500) break;
+    }
+    const tabs = Object.keys(files).filter(n => (files[n] || '').toLowerCase().includes(lower));
+    findCount.textContent = hits + '건' + (tabs.length ? ' · 탭: ' + tabs.join(', ') : '');
+    const first = preview.querySelector('mark');
+    if (first) first.scrollIntoView({ block: 'center' });
+  }
+  findInput.addEventListener('input', applyFind);
+  findInput.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { findInput.value = ''; applyFind(); }
+  });
+
+  const filelist = document.getElementById('filelist');
+  const LS_KEY = 'md-viewer-files-v5';
+  let files = {}; // name -> content
+  let versions = {}; // name -> [{t, content}] 최신순, 최대 5
+  let order = []; // 벽·사이드바 표시 순서
+  let active = null;
+
+  function persist() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ files, versions, order, active })); } catch (e) {}
+  }
+  function restore() {
+    try {
+      const raw = localStorage.getItem(LS_KEY) || localStorage.getItem('md-viewer-files-v4') || localStorage.getItem('md-viewer-files-v3') || localStorage.getItem('md-viewer-files-v2') || localStorage.getItem('md-viewer-files-v1');
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      if (data && data.files && typeof data.files === 'object') {
+        files = data.files; versions = data.versions || {};
+        order = (data.order || []).filter(n => n in files);
+        Object.keys(files).forEach(n => { if (!order.includes(n)) order.push(n); });
+        active = data.active || order[0] || null;
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+  function updateMonitor() {
+    const n = Object.keys(files).length;
+    const v = active ? ((versions[active] || []).length + 1) : 0;
+    document.getElementById('monitor').textContent =
+      '● N' + n + (active ? ' ' + active + ' v' + v : '');
+  }
+  function titleOf(name) {
+    const line = (files[name] || '').split('\n').find(l => l.trim()) || name;
+    return line.replace(/^#+\s*/, '').slice(0, 28) || name;
+  }
+  function sizeOf(name) {
+    const b = (files[name] || '').length;
+    return b > 1024 ? (b / 1024).toFixed(1) + 'KB' : b + '자';
+  }
+  let paneMode = 'wall';
+  let wallLayout = 'wall';
+  let dragName = null;
+  let lastDropT = 0;
+  try {
+    if (localStorage.getItem('md-viewer-pane') === 'doc') paneMode = 'doc';
+    const wl = localStorage.getItem('md-viewer-layout');
+    if (wl === 'dash' || wl === 'pebble') wallLayout = wl;
+  } catch (e) {}
+  const PALETTE = ['#f59e0b', '#3b82f6', '#22c55e', '#ec4899', '#8b5cf6', '#f97316', '#06b6ad', '#ef4444'];
+  function colorOf(name) {
+    let s = 0;
+    for (const c of name) s += c.codePointAt(0);
+    return PALETTE[s % PALETTE.length];
+  }
+  function excerptOf(name) {
+    return (files[name] || '').replace(/```[\s\S]*?```/g, ' ').replace(/[#>*`\-+!\[\]()]/g, ' ')
+      .replace(/\s+/g, ' ').trim().slice(0, 90);
+  }
+  function renderWall() {
+    const w = document.getElementById('wall');
+    w.className = wallLayout;
+    w.innerHTML = '';
+    const names = order.filter(n => n in files);
+    document.querySelectorAll('#laybtns button').forEach(b => { b.disabled = b.dataset.l === wallLayout; });
+    if (!names.length) {
+      const d = document.createElement('div');
+      d.className = 'empty';
+      d.textContent = '폴더 버튼으로 MD 파일을 여세요';
+      w.appendChild(d);
+      return;
+    }
+    const dark = document.body.classList.contains('dark');
+    names.forEach(name => {
+      const n = (versions[name] || []).length;
+      const col = colorOf(name);
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.borderColor = col;
+      card.style.background = dark ? '#2d2d2d' : col + '1a';
+      const t = document.createElement('div');
+      t.className = 'ct';
+      t.textContent = titleOf(name);
+      const e = document.createElement('div');
+      e.className = 'ce';
+      e.textContent = excerptOf(name);
+      const m = document.createElement('div');
+      m.className = 'cm';
+      m.textContent = 'v' + (n + 1) + ' · ' + sizeOf(name);
+      card.appendChild(t);
+      card.appendChild(e);
+      card.appendChild(m);
+      card.draggable = true;
+      card.ondragstart = ev => {
+        dragName = name;
+        try { ev.dataTransfer.setData('text/plain', name); } catch (e) {}
+        card.classList.add('dragging');
+      };
+      card.ondragend = () => {
+        dragName = null;
+        card.classList.remove('dragging');
+        w.querySelectorAll('.over').forEach(x => x.classList.remove('over'));
+      };
+      card.ondragover = ev => { ev.preventDefault(); card.classList.add('over'); };
+      card.ondragleave = () => card.classList.remove('over');
+      card.ondrop = ev => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const from = dragName || (ev.dataTransfer ? ev.dataTransfer.getData('text/plain') : '');
+        dragName = null;
+        if (!from || from === name || !(from in files)) return;
+        order = order.filter(n => n !== from);
+        order.splice(order.indexOf(name), 0, from);
+        lastDropT = Date.now();
+        persist();
+        renderSidebar();
+      };
+      card.onclick = () => {
+        if (Date.now() - lastDropT < 400) return;
+        active = name;
+        input.value = files[name];
+        paneMode = 'doc';
+        try { localStorage.setItem('md-viewer-pane', 'doc'); } catch (err) {}
+        renderSidebar();
+        renderVers();
+        renderAll();
+        persist();
+      };
+      w.appendChild(card);
+    });
+    w.ondragover = ev => ev.preventDefault();
+    w.ondrop = ev => {
+      ev.preventDefault();
+      if (ev.target.closest && ev.target.closest('.card')) return;
+      const from = dragName;
+      dragName = null;
+      if (!from || !(from in files)) return;
+      order = order.filter(n => n !== from);
+      order.push(from);
+      lastDropT = Date.now();
+      persist();
+      renderSidebar();
+    };
+  }
+  function renderAll() {
+    const wall = paneMode === 'wall';
+    document.getElementById('wall').style.display = wall ? '' : 'none';
+    document.getElementById('toc').style.display = wall ? 'none' : '';
+    preview.style.display = wall ? 'none' : '';
+    document.getElementById('pm-wall').disabled = wall;
+    document.getElementById('pm-doc').disabled = !wall;
+    document.getElementById('laybtns').style.display = wall ? '' : 'none';
+    try { localStorage.setItem('md-viewer-pane', paneMode); } catch (e) {}
+    if (wall) renderWall();
+    else render();
+  }
+  document.getElementById('pm-wall').onclick = () => { paneMode = 'wall'; renderAll(); };
+  document.getElementById('pm-doc').onclick = () => { paneMode = 'doc'; renderAll(); };
+  document.querySelectorAll('#laybtns button').forEach(b => {
+    b.onclick = () => {
+      wallLayout = b.dataset.l;
+      try { localStorage.setItem('md-viewer-layout', wallLayout); } catch (e) {}
+      renderWall();
+    };
+  });
+  function renderSidebar() {
+    filelist.innerHTML = '';
+    order.filter(n => n in files).forEach(name => {
+      const li = document.createElement('li');
+      const n = (versions[name] || []).length;
+      const nm = document.createElement('span');
+      nm.className = 'nm';
+      nm.textContent = n ? name + ' (v' + (n + 1) + ')' : name;
+      const x = document.createElement('span');
+      x.className = 'x';
+      x.textContent = '×';
+      x.title = '닫기';
+      x.onclick = ev => { ev.stopPropagation(); deleteTab(name); };
+      if (name === active) li.classList.add('active');
+      li.onclick = () => {
+        active = name;
+        input.value = files[name];
+        paneMode = 'doc';
+        renderSidebar();
+        renderVers();
+        renderAll();
+        persist();
+      };
+      li.appendChild(nm);
+      li.appendChild(x);
+      filelist.appendChild(li);
+    });
+    updateMonitor();
+    renderWall();
+  }
+  function deleteTab(name) {
+    delete files[name];
+    delete versions[name];
+    order = order.filter(n => n !== name);
+    if (active === name) {
+      active = order[0] || null;
+      input.value = active ? files[active] : '';
+    }
+    persist(); renderSidebar(); renderVers(); render();
+    status.textContent = '탭 닫음: ' + name;
+  }
+  function renderVers() {
+    verSel.innerHTML = '';
+    const list = versions[active] || [];
+    const cur = document.createElement('option');
+    cur.value = 'cur'; cur.textContent = '현재 v' + (list.length + 1);
+    verSel.appendChild(cur);
+    list.forEach((v, i) => {
+      const o = document.createElement('option');
+      o.value = String(i); o.textContent = '이전 v' + (list.length - i) + ' (' + new Date(v.t).toLocaleString() + ')';
+      verSel.appendChild(o);
+    });
+    verSel.value = 'cur';
+  }
+  verSel.onchange = () => {
+    if (verSel.value === 'cur' || !active) { render(); return; }
+    const v = (versions[active] || [])[Number(verSel.value)];
+    if (v) { preview.innerHTML = DOMPurify.sanitize(renderMarkdown(v.content)); buildToc(); applyFind(); }
+  };
+  function openTab(name, content) {
+    if (files[name] != null && files[name] !== content) {
+      const list = versions[name] || (versions[name] = []);
+      list.unshift({ t: Date.now(), content: files[name] });
+      if (list.length > 5) list.length = 5;
+    }
+    files[name] = content; active = name;
+    if (!order.includes(name)) order.push(name);
+    persist(); renderSidebar(); renderVers();
+  }
+
+  input.addEventListener('input', () => {
+    verSel.value = 'cur';
+    render();
+    if (active) { files[active] = input.value; persist(); }
+  });
+  let syncing = false;
+  function syncPair(from, to) {
+    if (syncing) return;
+    const target = from.scrollTop / Math.max(1, from.scrollHeight - from.clientHeight) *
+      Math.max(0, to.scrollHeight - to.clientHeight);
+    if (Math.abs(to.scrollTop - target) < 2) return;
+    syncing = true;
+    to.scrollTop = target;
+    requestAnimationFrame(() => { syncing = false; });
+  }
+  input.addEventListener('scroll', () => syncPair(input, preview));
+  preview.addEventListener('scroll', () => syncPair(preview, input));
+
+  file.addEventListener('change', () => {
+    const f = file.files[0];
+    if (!f) return;
+    loadFile(f);
+    file.value = '';
+  });
+
+  async function openFolder() {
+    if (window.showDirectoryPicker) {
+      try {
+        const dir = await window.showDirectoryPicker();
+        let opened = 0, skipped = 0;
+        for await (const entry of dir.values()) {
+          if (entry.kind !== 'file' || !/\.m(arkdown|d)$/i.test(entry.name)) continue;
+          if (opened >= 50) { skipped++; continue; }
+          const fh = await entry.getFile();
+          if (fh.size > 1024 * 1024) { skipped++; continue; }
+          openTab(entry.name, await fh.text());
+          opened++;
+        }
+        if (opened) { input.value = files[active]; renderSidebar(); renderVers(); render(); }
+        status.textContent = opened + '개 열기' + (skipped ? ' · ' + skipped + '개 건너뜀(>1MB·50개 초과)' : '');
+      } catch (e) {
+        if (e.name !== 'AbortError') status.textContent = '폴더 열기 실패: ' + e.message;
+      }
+    } else {
+      document.getElementById('dirfallback').click();
+    }
+  }
+  document.getElementById('export').onclick = () => {
+    const title = active || 'md-viewer';
+    const doc = '<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>' +
+      title.replace(/</g, '&lt;') + '</title><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2em auto;padding:0 1em}pre{background:#f6f8fa;padding:12px;overflow:auto}</style></head><body>' +
+      preview.innerHTML + '</body></html>';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([doc], { type: 'text/html' }));
+    a.download = title.replace(/\.(md|markdown)$/i, '') + '.html';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    status.textContent = a.download + ' 저장됨';
+  };
+  document.getElementById('folder').onclick = openFolder;
+  document.getElementById('dirfallback').addEventListener('change', e => {
+    const list = Array.from(e.target.files || []).filter(f => /\.m(arkdown|d)$/i.test(f.name)).slice(0, 50);
+    if (!list.length) { status.textContent = '폴더에 .md 없음'; return; }
+    (async () => {
+      for (const f of list) {
+        if (f.size > 1024 * 1024) continue;
+        openTab(f.name, await f.text());
+      }
+      input.value = files[active]; renderSidebar(); renderVers(); render();
+      status.textContent = list.length + '개 열기';
+    })();
+    e.target.value = '';
+  });
+
+  function loadFile(f) {
+    if (f.size === 0) { input.value = ''; render(); status.textContent = f.name + ': 빈 파일'; return; }
+    if (f.size > 1024 * 1024) status.textContent = f.name + ': 대용량(>1MB) 주의, 렌더가 느릴 수 있음';
+    const reader = new FileReader();
+    reader.onload = () => {
+      let text = String(reader.result || '');
+      if (text.includes('\uFFFD')) status.textContent = f.name + ': 인코딩 확인 필요(UTF-8 아님 가능)';
+      else if (f.size <= 1024 * 1024) status.textContent = f.name;
+      input.value = text;
+      openTab(f.name, text);
+      render();
+      if (f.size > 1024 * 1024) status.textContent += ' · 렌더 완료';
+    };
+    reader.onerror = () => { status.textContent = f.name + ': 파일 읽기 실패'; };
+    reader.readAsText(f, 'utf-8');
+  }
+
+  ['dragenter', 'dragover'].forEach(ev =>
+    document.addEventListener(ev, e => { e.preventDefault(); document.body.classList.add('dragover'); }));
+  ['dragleave', 'drop'].forEach(ev =>
+    document.addEventListener(ev, e => { e.preventDefault(); document.body.classList.remove('dragover'); }));
+  document.addEventListener('drop', e => {
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+
+  if (restore() && active && files[active] != null) {
+    input.value = files[active];
+    renderSidebar();
+    renderVers();
+  }
+  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+  try {
+    if (localStorage.getItem('md-viewer-theme') === 'dark') {
+      document.body.classList.add('dark');
+      document.getElementById('theme').textContent = '라이트';
+    }
+  } catch (e) {}
+  document.getElementById('theme').onclick = () => {
+    const dark = document.body.classList.toggle('dark');
+    document.getElementById('theme').textContent = dark ? '라이트' : '다크';
+    try { localStorage.setItem('md-viewer-theme', dark ? 'dark' : 'light'); } catch (e) {}
+    renderWall();
+  };
+  function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function extractMd(t) {
+    const m = String(t).match(/```(?:md|markdown)?\s*\n([\s\S]*?)```/);
+    return (m ? m[1] : String(t)).trim();
+  }
+  let chatSID = null;
+  let lastReply = '';
+  let lastTarget = null;
+  try { chatSID = localStorage.getItem('md-viewer-chat-sid'); } catch (e) {}
+  function addMsg(cls, html) {
+    const log = document.getElementById('chatlog');
+    const d = document.createElement('div');
+    d.className = 'msg ' + cls;
+    d.innerHTML = html;
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+    return d;
+  }
+  async function chatInit() {
+    const r = await fetch('./oc/chat-init', { method: 'POST' });
+    const j = await r.json();
+    if (!j.sessionID) throw new Error(j.error || '세션 실패');
+    chatSID = j.sessionID;
+    try { localStorage.setItem('md-viewer-chat-sid', chatSID); } catch (e) {}
+  }
+  async function chatPost(text) {
+    const r = await fetch('./oc/chat-send', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionID: chatSID, text }) });
+    return r.json().catch(() => ({}));
+  }
+  async function chatSend() {
+    const box = document.getElementById('chatin');
+    const ins = box.value.trim();
+    if (!ins) return;
+    if (!active) { status.textContent = '채팅: 먼저 파일을 여세요'; return; }
+    document.getElementById('chatapply').style.display = 'none';
+    addMsg('me', escHtml(ins));
+    box.value = '';
+    lastTarget = active;
+    document.getElementById('chattarget').textContent = '→ ' + lastTarget;
+    const target = lastTarget;
+    const snapshot = files[target];
+    const prompt = ins + '\n\n--- 개선 대상 MD (' + target + ') ---\n' + snapshot +
+      '\n--- 끝 ---\n규칙: 도구 사용 금지. 개선된 마크다운 전문을 ```md 펜스로 감싸서 답해. 설명은 펜스 밖에 짧게.';
+    const ai = addMsg('ai', '생성 중…');
+    if (!chatSID) {
+      try { await chatInit(); } catch (e) { ai.textContent = '세션 실패: ' + e.message; return; }
+    }
+    let j = await chatPost(prompt);
+    if (j.error) {
+      try { await chatInit(); } catch (e) { ai.textContent = '세션 실패: ' + e.message; return; }
+      j = await chatPost(prompt);
+      if (j.error) { ai.textContent = '전송 실패: ' + j.error; return; }
+    }
+    let after = null;
+    const t0 = Date.now();
+    while (Date.now() - t0 < 10 * 60 * 1000) {
+      await new Promise(res => setTimeout(res, 2000));
+      let pj = {};
+      try {
+        pj = await (await fetch('./oc/chat-poll?sessionID=' + encodeURIComponent(chatSID) +
+          (after ? '&after=' + encodeURIComponent(after) : ''))).json();
+      } catch (e) { ai.textContent = '조회 실패'; return; }
+      if (pj.error) { ai.textContent = '오류: ' + pj.error; return; }
+      for (const m of pj.messages || []) {
+        if (!m.done) {
+          try { ai.innerHTML = DOMPurify.sanitize(renderMarkdown(m.text)) + ' ▍'; } catch (e) {}
+          continue;
+        }
+        after = m.id;
+        lastReply = m.text;
+        try { ai.innerHTML = DOMPurify.sanitize(renderMarkdown(m.text)); } catch (e) { ai.textContent = m.text; }
+        if (m.error) ai.innerHTML += '<br>오류: ' + escHtml(m.error);
+        document.getElementById('chatapply').style.display = '';
+        return;
+      }
+    }
+    ai.textContent += ' (시간 초과)';
+  }
+  document.getElementById('chatsend').onclick = chatSend;
+  document.getElementById('chatin').addEventListener('keydown', e => {
+    if (e.key === 'Enter') chatSend();
+  });
+  document.getElementById('chatapply').onclick = () => {
+    const body = extractMd(lastReply);
+    if (!body || !lastTarget) return;
+    active = lastTarget;
+    input.value = body;
+    openTab(lastTarget, body);
+    render();
+    status.textContent = lastTarget + ' 반영됨';
+    document.getElementById('chatapply').style.display = 'none';
+  };
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { findInput.value = ''; applyFind(); return; }
+    if (!e.ctrlKey && !e.metaKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'o') { e.preventDefault(); file.click(); }
+    else if (k === 'f') { e.preventDefault(); findInput.focus(); findInput.select(); }
+    else if (k === 'e') { e.preventDefault(); document.getElementById('export').click(); }
+    else if (k === 'd') { e.preventDefault(); document.getElementById('theme').click(); }
+  });
+  renderAll();
+</script>
+</body>
+</html>
