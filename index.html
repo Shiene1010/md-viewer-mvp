@@ -164,6 +164,7 @@
     speech_unity: 'sord-02-파국전야.md', crackdown: 'sord-02-파국전야.md', retreat: 'sord-00-프롤로그.md',
     parade: 'sord-02-파국전야.md', address: 'sord-02-파국전야.md',
     negotiate: 'sord-03-엔딩-봉합.md', hardline: 'sord-03-엔딩-진압.md',
+    retry_sord: 'sord-00-프롤로그.md',
   };
   // 소르드식 스탯 세션 상태 (자금 빠듯 15·여론 분열 50·불안 30·군부 50·과두 60)
   const SORD_KEY = 'md-viewer-sord-v1';
@@ -234,11 +235,13 @@
             if (k in sord) sord[k] = Math.max(0, Math.min(100, sord[k] + Number(c.effects[k])));
           }
           saveSord();
-          sordMsg = '📊 ' + Object.keys(c.effects || {}).filter(k => k in before)
-            .map(k => k + ' ' + before[k] + '→' + sord[k]).join(' · ');
+          const keys = Object.keys(c.effects || {}).filter(k => k in before);
+          sordMsg = keys.length
+            ? '📊 ' + keys.map(k => k + ' ' + before[k] + '→' + sord[k]).join(' · ')
+            : '';
           if (sord.unrest >= 70) sordMsg += ' ⚠️ FOR domain=sord WHEN unrest >= 70 TRIGGER protests';
           else if (sord.opinion <= 20) sordMsg += ' ⚠️ FOR domain=sord WHEN opinion <= 20 TRIGGER vote_crisis';
-          sordMsg += ' (리셋: ?sord-reset)';
+          if (sordMsg) sordMsg += ' (리셋: ?sord-reset)';
         }
         const hit = target && findFile(target);
         if (hit) {
