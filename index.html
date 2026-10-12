@@ -159,7 +159,11 @@
     opt_follow_cat: 'alice-04-체셔고양이.md', opt_imf_loan: null, opt_moratorium: null,
     choice_drink_potion: 'alice-02-눈물연못.md', choice_examine_key: 'alice-03-황금열쇠.md',
     choice_force_open: null, drink_me_bottle: 'alice-02-눈물연못.md', eat_me_cake: 'alice-04-체셔고양이.md',
-    decree_stimulus: 'sord-00-프롤로그.md', decree_austerity: 'sord-00-프롤로그.md', decree_dialogue: 'sord-00-프롤로그.md',
+    decree_stimulus: 'sord-01-취임식.md', decree_austerity: 'sord-01-의회.md', decree_dialogue: 'sord-01-광장.md',
+    bill_tax: 'sord-02-파국전야.md', bill_welfare: 'sord-02-파국전야.md', adjourn: 'sord-00-프롤로그.md',
+    speech_unity: 'sord-02-파국전야.md', crackdown: 'sord-02-파국전야.md', retreat: 'sord-00-프롤로그.md',
+    parade: 'sord-02-파국전야.md', address: 'sord-02-파국전야.md',
+    negotiate: 'sord-03-엔딩-봉합.md', hardline: 'sord-03-엔딩-진압.md',
   };
   // 소르드식 스탯 세션 상태 (자금 빠듯 15·여론 분열 50·불안 30·군부 50·과두 60)
   const SORD_KEY = 'md-viewer-sord-v1';
@@ -247,7 +251,10 @@
           renderAll();
           persist();
         }
-        if (sordMsg) status.textContent = sordMsg;
+        if (sordMsg) {
+          const need = target && !hit ? ' (폴더로 ' + target + ' 여세요)' : '';
+          status.textContent = sordMsg + need;
+        }
         else if (!hit) {
           status.textContent = '분기 없음: ' + c.id + (target ? ' (폴더로 ' + target + ' 여세요)' : '');
         }
