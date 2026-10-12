@@ -16,6 +16,9 @@
   #md-input { flex: 1; padding: 12px; font: 14px/1.6 monospace; border: 0; resize: none; outline: none; }
   #preview { padding: 16px 20px; overflow: auto; }
   #preview pre { background: #f6f8fa; padding: 12px; overflow: auto; }
+  #preview blockquote.mdma-choice { cursor: pointer; border-left: 3px solid #3b82f6; }
+  #preview blockquote.mdma-choice:hover { background: #eff6ff; }
+  body.dark #preview blockquote.mdma-choice:hover { background: #2d2d2d; }
   #status { font-size: 12px; color: #666; }
   #body { display: flex; }
   #sidebar { width: 220px; min-width: 220px; border-right: 1px solid #ddd; overflow-y: auto; }
@@ -143,14 +146,72 @@
     return marked.parse(md || '');
   }
 
+  // mdma-button 펜스는 기계용이라 읽기창에서 선택지 목록으로 치환 (renderMarkdown 교체점 유지)
+  let lastChoices = []; // [{id, text}] 문서 순서
+  const NEXT = {
+    follow: 'alice-02-눈물연못.md', stay: 'alice-02-남기.md',
+    swim: 'alice-03-황금열쇠.md', drink: 'alice-03-황금열쇠.md',
+    choice_analyze_key: 'alice-04-체셔고양이.md',
+    choice_follow_smile: 'alice-02-남기.md', choice_ignore_cat: 'alice-02-남기.md',
+    retry: 'alice-01-토끼굴.md',
+    opt_drink_potion: 'alice-02-눈물연못.md', opt_examine_key: 'alice-03-황금열쇠.md',
+    opt_follow_cat: 'alice-04-체셔고양이.md', opt_imf_loan: null, opt_moratorium: null,
+    choice_drink_potion: 'alice-02-눈물연못.md', choice_examine_key: 'alice-03-황금열쇠.md',
+    choice_force_open: null, drink_me_bottle: 'alice-02-눈물연못.md', eat_me_cake: 'alice-04-체셔고양이.md',
+  };
+  function mdmaToChoices(md) {
+    lastChoices = [];
+    return String(md || '').replace(/```mdma-button\s*([\s\S]*?)```/g, (m, body) => {
+      try {
+        const d = JSON.parse(body.trim());
+        lastChoices.push({ id: String(d.id || ''), text: String(d.text || d.id || '선택지') });
+        return '\n\n> 🔘 ' + String(d.text || d.id || '선택지') + '\n\n';
+      } catch (e) {
+        return '';
+      }
+    });
+  }
+  // macOS NFD 파일명 대응: NFC 정규화 비교로 탭 탐색
+  function findFile(name) {
+    if (files[name] != null) return name;
+    const want = String(name).normalize('NFC');
+    return Object.keys(files).find(k => k.normalize('NFC') === want);
+  }
+  function bindChoices() {    const bqs = Array.from(preview.querySelectorAll('blockquote'))
+      .filter(b => b.textContent.trim().startsWith('🔘'));
+    bqs.forEach((b, i) => {
+      const c = lastChoices[i];
+      if (!c || !c.id) return;
+      b.classList.add('mdma-choice');
+      b.title = '이동: ' + (NEXT[c.id] || '(분기 없음)');
+      b.onclick = () => {
+        const target = NEXT[c.id];
+        const hit = target && findFile(target);
+        if (hit) {
+          active = hit;
+          input.value = files[hit];
+          paneMode = 'doc';
+          try { localStorage.setItem('md-viewer-pane', 'doc'); } catch (err) {}
+          renderSidebar();
+          renderVers();
+          renderAll();
+          persist();
+        } else {
+          status.textContent = '분기 없음: ' + c.id + (target ? ' (폴더로 ' + target + ' 여세요)' : '');
+        }
+      };
+    });
+  }
+
   function render() {
     try {
-      preview.innerHTML = DOMPurify.sanitize(renderMarkdown(input.value), { ADD_ATTR: ['class'] });
+      preview.innerHTML = DOMPurify.sanitize(renderMarkdown(mdmaToChoices(input.value)), { ADD_ATTR: ['class'] });
       if (window.hljs) preview.querySelectorAll('pre code').forEach(el => {
         try { hljs.highlightElement(el); } catch (e) {}
       });
       buildToc();
       applyFind();
+      bindChoices();
       const t = input.value;
       document.getElementById('stats').textContent =
         t ? t.length + '자 · ' + t.trim().split(/\s+/).length + '단어 · ' + t.split('\n').length + '줄' : '';
@@ -437,7 +498,7 @@
   verSel.onchange = () => {
     if (verSel.value === 'cur' || !active) { render(); return; }
     const v = (versions[active] || [])[Number(verSel.value)];
-    if (v) { preview.innerHTML = DOMPurify.sanitize(renderMarkdown(v.content)); buildToc(); applyFind(); }
+    if (v) { preview.innerHTML = DOMPurify.sanitize(renderMarkdown(mdmaToChoices(v.content))); buildToc(); applyFind(); }
   };
   function openTab(name, content) {
     if (files[name] != null && files[name] !== content) {
@@ -530,7 +591,7 @@
     const reader = new FileReader();
     reader.onload = () => {
       let text = String(reader.result || '');
-      if (text.includes('\uFFFD')) status.textContent = f.name + ': 인코딩 확인 필요(UTF-8 아님 가능)';
+      if (text.includes('�')) status.textContent = f.name + ': 인코딩 확인 필요(UTF-8 아님 가능)';
       else if (f.size <= 1024 * 1024) status.textContent = f.name;
       input.value = text;
       openTab(f.name, text);

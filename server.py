@@ -106,4 +106,13 @@ class H(SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    ThreadingHTTPServer(('127.0.0.1', 8123), H).serve_forever()
+    import sys
+    host = os.environ.get('HOST', '127.0.0.1')
+    port = int(os.environ.get('PORT', '8123'))
+    # python3 server.py [host] [port]  (예: python3 server.py 0.0.0.0 8123)
+    if len(sys.argv) > 1:
+        host = sys.argv[1]
+    if len(sys.argv) > 2:
+        port = int(sys.argv[2])
+    print(f'md-viewer: http://{host}:{port}', flush=True)
+    ThreadingHTTPServer((host, port), H).serve_forever()

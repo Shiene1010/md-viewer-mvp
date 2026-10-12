@@ -1,4 +1,4 @@
-const CACHE = 'md-viewer-v4';
+const CACHE = 'md-viewer-v5';
 const ASSETS = ['./', './index.html', './manifest.json', './icon.svg',
   './vendor/markdown-it.min.js', './vendor/marked.min.js', './vendor/purify.min.js',
   './vendor/highlight.min.js', './vendor/github.min.css'];
