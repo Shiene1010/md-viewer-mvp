@@ -1,5 +1,6 @@
 # CHANGELOG
 
+- 2026-10-12: 수저레인식 프롤로그 1턴. 스탯 5종+requires 잠금+세션 스탯 적용+unrest 70 임계. austerity 3회 TRIGGER 확인.
 - 2026-10-12: 선택지 클릭 분기이동. NEXT 매핑+macOS NFD 파일명 정규화 탐색. 클릭→다음 챕터 확인.
 - 2026-10-12: 문서창 mdma-button 원시JSON 노출 수정. 읽기용 선택지 인용구 치환+SW v5. renderMarkdown 교체점 유지.
 - 2026-10-12: 전체 소실 후 복구. vendor CDN 재취득+전문 복원, icon.svg만 재작성(원본 미보유).

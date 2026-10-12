@@ -18,6 +18,7 @@
   #preview pre { background: #f6f8fa; padding: 12px; overflow: auto; }
   #preview blockquote.mdma-choice { cursor: pointer; border-left: 3px solid #3b82f6; }
   #preview blockquote.mdma-choice:hover { background: #eff6ff; }
+  #preview blockquote.mdma-choice.locked { cursor: not-allowed; border-left-color: #ccc; opacity: .55; }
   body.dark #preview blockquote.mdma-choice:hover { background: #2d2d2d; }
   #status { font-size: 12px; color: #666; }
   #body { display: flex; }
@@ -158,13 +159,41 @@
     opt_follow_cat: 'alice-04-체셔고양이.md', opt_imf_loan: null, opt_moratorium: null,
     choice_drink_potion: 'alice-02-눈물연못.md', choice_examine_key: 'alice-03-황금열쇠.md',
     choice_force_open: null, drink_me_bottle: 'alice-02-눈물연못.md', eat_me_cake: 'alice-04-체셔고양이.md',
+    decree_stimulus: 'sord-00-프롤로그.md', decree_austerity: 'sord-00-프롤로그.md', decree_dialogue: 'sord-00-프롤로그.md',
   };
+  // 소르드식 스탯 세션 상태 (자금 빠듯 15·여론 분열 50·불안 30·군부 50·과두 60)
+  const SORD_KEY = 'md-viewer-sord-v1';
+  const SORD0 = { treasury: 15, opinion: 50, unrest: 30, military: 50, oligarchs: 60 };
+  let sord = null;
+  try {
+    sord = JSON.parse(localStorage.getItem(SORD_KEY) || 'null') || { ...SORD0 };
+    if (location.search.includes('sord-reset')) {
+      sord = { ...SORD0 };
+      history.replaceState(null, '', location.pathname);
+    }
+  } catch (e) { sord = { ...SORD0 }; }
+  function saveSord() {
+    try { localStorage.setItem(SORD_KEY, JSON.stringify(sord)); } catch (e) {}
+  }
+  // requires: {"treasury":20}=이상, {"unrest_max":70}=이하
+  function checkRequires(req) {
+    req = req || {};
+    for (const k of Object.keys(req)) {
+      let base = k, wantMax = false;
+      if (k.endsWith('_max')) { base = k.slice(0, -4); wantMax = true; }
+      else if (k.endsWith('_min')) { base = k.slice(0, -4); }
+      const cur = Number(sord[base] ?? 0), need = Number(req[k]);
+      if (wantMax ? cur > need : cur < need) return base + (wantMax ? '≤' : '≥') + need + '(현재 ' + cur + ')';
+    }
+    return '';
+  }
   function mdmaToChoices(md) {
     lastChoices = [];
     return String(md || '').replace(/```mdma-button\s*([\s\S]*?)```/g, (m, body) => {
       try {
         const d = JSON.parse(body.trim());
-        lastChoices.push({ id: String(d.id || ''), text: String(d.text || d.id || '선택지') });
+        lastChoices.push({ id: String(d.id || ''), text: String(d.text || d.id || '선택지'),
+          domain: String(d.domain || ''), requires: d.requires || {}, effects: d.effects || {} });
         return '\n\n> 🔘 ' + String(d.text || d.id || '선택지') + '\n\n';
       } catch (e) {
         return '';
@@ -183,9 +212,30 @@
       const c = lastChoices[i];
       if (!c || !c.id) return;
       b.classList.add('mdma-choice');
+      const lockReason = c.domain === 'sord' ? checkRequires(c.requires) : '';
+      if (lockReason) {
+        b.classList.add('locked');
+        b.title = '잠김: ' + lockReason;
+        b.onclick = () => { status.textContent = '🔒 ' + c.text + ' — 조건 미달: ' + lockReason; };
+        return;
+      }
       b.title = '이동: ' + (NEXT[c.id] || '(분기 없음)');
       b.onclick = () => {
         const target = NEXT[c.id];
+        // 소르드 스탯 적용 + 임계 판정 (render()가 status를 지우므로 메시지는 마지막에)
+        let sordMsg = '';
+        if (c.domain === 'sord') {
+          const before = { ...sord };
+          for (const k of Object.keys(c.effects || {})) {
+            if (k in sord) sord[k] = Math.max(0, Math.min(100, sord[k] + Number(c.effects[k])));
+          }
+          saveSord();
+          sordMsg = '📊 ' + Object.keys(c.effects || {}).filter(k => k in before)
+            .map(k => k + ' ' + before[k] + '→' + sord[k]).join(' · ');
+          if (sord.unrest >= 70) sordMsg += ' ⚠️ FOR domain=sord WHEN unrest >= 70 TRIGGER protests';
+          else if (sord.opinion <= 20) sordMsg += ' ⚠️ FOR domain=sord WHEN opinion <= 20 TRIGGER vote_crisis';
+          sordMsg += ' (리셋: ?sord-reset)';
+        }
         const hit = target && findFile(target);
         if (hit) {
           active = hit;
@@ -196,7 +246,9 @@
           renderVers();
           renderAll();
           persist();
-        } else {
+        }
+        if (sordMsg) status.textContent = sordMsg;
+        else if (!hit) {
           status.textContent = '분기 없음: ' + c.id + (target ? ' (폴더로 ' + target + ' 여세요)' : '');
         }
       };
